@@ -1,0 +1,103 @@
+/* styles.css — updated so right-side panel doesn't scroll with PDF viewer */
+:root{
+  --accent: #1f6feb;
+  --danger: #e04848;
+  --bg: #000; /* outside pdf area colored black */
+  --muted: #9aa3b2;
+
+  /* Header/role banner heights used for sticky calculations.
+     Tweak these values if your header/role banner are taller. */
+  --topbar-h: 56px;
+  --rolebanner-h: 110px;
+  --header-total: calc(var(--topbar-h) + var(--rolebanner-h));
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial,sans-serif;background:var(--bg);color:#fff}
+.topbar{display:flex;align-items:center;gap:12px;padding:12px;background:var(--accent);color:#fff;position:sticky;top:0;z-index:30;height:var(--topbar-h)}
+.brand{font-weight:700}
+.status{margin-left:auto;font-size:14px}
+
+.role-banner{display:flex;justify-content:space-between;align-items:center;padding:14px;background:#fff;border-bottom:1px solid #eee;gap:12px;color:#111;height:var(--rolebanner-h)}
+.role-buttons button{margin-left:8px;padding:10px 14px;border-radius:8px;border:2px solid var(--accent);background:#fff;color:var(--accent);font-weight:600}
+.muted{color:#666;font-size:14px}
+
+/* layout: grid with viewer + right panel */
+.app-grid{display:grid;grid-template-columns:1fr 360px;gap:12px;padding:12px;min-height:calc(100vh - var(--header-total));}
+
+/* Viewer: make this the only scrollable region.
+   It will scroll internally while right panel stays visible. */
+.viewer{
+  position:relative;
+  background:var(--bg);
+  border-radius:8px;
+  padding:12px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  overflow:auto;                 /* <- only this scrolls */
+  max-height:calc(100vh - var(--header-total));
+}
+
+/* PDF container holds multiple pages vertically. It scrolls inside .viewer */
+.pdf-container{
+  width:100%;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  align-items:center;
+  padding-bottom:40px;
+}
+
+/* Page wrapper and canvases (unchanged) */
+.page-wrap{position:relative;background:#fff;padding:8px;border-radius:8px}
+.pdf-page{display:block;max-width:calc(100vw - 160px);height:auto;border-radius:6px}
+.anno-page{position:absolute;left:8px;top:8px;pointer-events:auto;opacity:1}
+
+/* Annotator badge fixed on viewport (always visible) */
+.annotator-badge{
+  position:fixed;
+  left:18px;
+  bottom:18px;
+  background:rgba(255,255,255,0.95);
+  color:#111;
+  padding:8px 10px;
+  border-radius:8px;
+  border:1px solid #eee;
+  display:none;
+  align-items:center;
+  gap:8px;
+  z-index:60;
+}
+
+/* Right-side panel: sticky so it doesn't scroll with viewer.
+   It stays visible while viewer scrolls. */
+.panel{
+  background:#fff;
+  border-radius:10px;
+  padding:12px;
+  border:1px solid #eee;
+  color:#111;
+  position:sticky;            /* <-- keeps the panel visible */
+  top: calc(var(--topbar-h) + 12px); /* offset from topbar */
+  align-self:start;           /* ensures it stays at top of column */
+  max-height: calc(100vh - var(--topbar-h) - 24px);
+  overflow:auto;              /* panel internal scrolling if content tall */
+}
+
+/* Additional UI */
+.small{padding:6px 8px;font-size:13px}
+.danger{background:var(--danger);color:#fff;border-radius:8px;padding:8px 10px;border:0}
+.row{display:flex;gap:8px;align-items:center;margin-top:8px}
+input,button,select{font-size:15px}
+
+/* Responsive: collapse to single column on smaller viewports.
+   When single column, panel will be below viewer and will scroll with page (expected for mobile). */
+@media(max-width:900px){
+  .app-grid{grid-template-columns:1fr; padding:10px; min-height: auto;}
+  .viewer{max-height:none; overflow:auto; padding:10px;}
+  .role-banner{height:auto}
+  .panel{position:relative; top:auto; max-height:none; margin-top:8px}
+  .pdf-page{max-width:100%}
+  .annotator-badge{left:12px;bottom:12px}
+}

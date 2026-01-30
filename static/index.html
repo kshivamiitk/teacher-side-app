@@ -1,0 +1,87 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>PDF Annotator — Teacher-approved</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">PDF Class — Teacher-approved</div>
+    <div id="status" class="status">Not connected</div>
+  </div>
+
+  <div class="role-banner" id="roleBanner">
+    <div>
+      <h2>Choose your role</h2>
+      <p class="muted">Teacher starts a class and uploads the PDF. Student joins using Class ID and requests annotation.</p>
+    </div>
+    <div class="role-buttons">
+      <button id="btnTeacher">I am Teacher</button>
+      <button id="btnStudent">I am Student</button>
+    </div>
+  </div>
+
+  <div class="app-grid">
+    <div class="viewer" id="viewer">
+      <div id="pdfContainer" class="pdf-container"></div>
+      <div class="annotator-badge" id="annotatorBadge">
+        <div>Annotator: <span id="annotatorName">—</span></div>
+        <button id="stopAnnotateBtn" class="danger small">Stop</button>
+      </div>
+    </div>
+
+    <div class="panel" id="teacherPanel">
+      <h3>Teacher — Start class</h3>
+      <form id="uploadForm">
+        <label>Upload PDF
+          <input id="pdfFile" type="file" accept="application/pdf" />
+        </label>
+        <div class="row">
+          <button id="startClassBtn" type="submit">Start Class & Upload</button>
+        </div>
+      </form>
+      <div id="classInfo" class="muted"></div>
+      <hr/>
+      <h4>Controls</h4>
+      <div class="row">
+        <label>Page: <input id="teacherPage" type="number" min="1" value="1" /></label>
+        <button id="gotoPageBtn">Go</button>
+        <button id="clearBtn" class="danger">Clear</button>
+      </div>
+      <h4>Pending requests</h4>
+      <div id="pendingList">No pending requests</div>
+      <h4>Participants</h4>
+      <ul id="participantsTeacher"></ul>
+    </div>
+
+    <div class="panel" id="studentPanel">
+      <h3>Student — Join class</h3>
+      <label>Class ID
+        <input id="joinClassId" placeholder="paste class id" />
+      </label>
+      <label>Your name
+        <input id="studentName" placeholder="Your name" />
+      </label>
+      <div class="row">
+        <button id="joinBtn">Join</button>
+      </div>
+      <div id="joinInfo" class="muted"></div>
+
+      <hr/>
+      <div class="row">
+        <label>Color: <input id="colorPicker" type="color" value="#ff0000" /></label>
+        <label>Width: <input id="widthPicker" type="range" min="1" max="12" value="3" /></label>
+        <button id="requestAnnotateBtn" disabled>Request to annotate</button>
+      </div>
+      <div id="annotateStatus" class="muted"></div>
+      <h4>Participants</h4>
+      <ul id="participantsStudent"></ul>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
