@@ -1840,5 +1840,37 @@
       ]
     },
     "last_student_annotator": null
+  },
+  "1d6uTvVq": {
+    "teacher_key": "HV9O2F",
+    "pdf_filename": "94617379d5f44528b38cc326d123b49f.pdf",
+    "students": {
+      "PW6Si9dyR_I": {
+        "name": "shivam",
+        "allowed": true
+      }
+    },
+    "pending": {},
+    "strokes": {},
+    "last_student_annotator": null,
+    "current_annotator": null
+  },
+  "rbSa4KK-": {
+    "teacher_key": "5S4X09",
+    "pdf_filename": "d162933977b14b0787493fd97a67525a.pdf",
+    "students": {
+      "lT1FQXyYm9o": {
+        "name": "shivam",
+        "allowed": true
+      },
+      "KE9kwnD6t1Y": {
+        "name": "harshika",
+        "allowed": false
+      }
+    },
+    "pending": {},
+    "strokes": {},
+    "last_student_annotator": null,
+    "current_annotator": null
   }
 }

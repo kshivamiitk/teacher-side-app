@@ -2,14 +2,14 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>PDF Annotator — Teacher-approved</title>
+  <title>PDF Annotator — Persistent</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="/static/styles.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 </head>
 <body>
   <div class="topbar">
-    <div class="brand">PDF Class — Teacher-approved</div>
+    <div class="brand">PDF Class — Persistent</div>
     <div id="status" class="status">Not connected</div>
   </div>
 
@@ -33,52 +33,63 @@
       </div>
     </div>
 
-    <div class="panel" id="teacherPanel">
-      <h3>Teacher — Start class</h3>
-      <form id="uploadForm">
-        <label>Upload PDF
-          <input id="pdfFile" type="file" accept="application/pdf" />
+    <div class="panel" id="controlsPanel">
+      <div id="teacherPanel" class="panel-inner">
+        <h3>Teacher — Start class</h3>
+        <form id="uploadForm">
+          <label>Upload PDF
+            <input id="pdfFile" type="file" accept="application/pdf" />
+          </label>
+          <div class="row">
+            <button id="startClassBtn" type="submit">Start Class & Upload</button>
+          </div>
+        </form>
+        <div id="classInfo" class="muted"></div>
+        <hr/>
+        <h4>Controls</h4>
+        <div class="row">
+          <label>Page: <input id="teacherPage" type="number" min="1" value="1" /></label>
+          <button id="gotoPageBtn">Go</button>
+        </div>
+        <div class="row" style="margin-top:10px;flex-direction:column;gap:8px">
+          <button id="clearAllBtn" class="danger">Clear all annotations</button>
+          <button id="clearTeacherBtn">Clear teacher annotations</button>
+          <button id="clearStudentLastBtn">Clear last student annotations</button>
+          <button id="clearStudentAllBtn">Clear all student annotations</button>
+        </div>
+
+        <h4 style="margin-top:12px">Pending requests</h4>
+        <div id="pendingList">No pending requests</div>
+        <h4>Participants</h4>
+        <ul id="participantsTeacher"></ul>
+      </div>
+
+      <div id="studentPanel" class="panel-inner" style="display:none">
+        <h3>Student — Join class</h3>
+        <label>Class ID
+          <input id="joinClassId" placeholder="paste class id" />
+        </label>
+        <label>Your name
+          <input id="studentName" placeholder="Your name" />
         </label>
         <div class="row">
-          <button id="startClassBtn" type="submit">Start Class & Upload</button>
+          <button id="joinBtn">Join</button>
         </div>
-      </form>
-      <div id="classInfo" class="muted"></div>
-      <hr/>
-      <h4>Controls</h4>
-      <div class="row">
-        <label>Page: <input id="teacherPage" type="number" min="1" value="1" /></label>
-        <button id="gotoPageBtn">Go</button>
-        <button id="clearBtn" class="danger">Clear</button>
-      </div>
-      <h4>Pending requests</h4>
-      <div id="pendingList">No pending requests</div>
-      <h4>Participants</h4>
-      <ul id="participantsTeacher"></ul>
-    </div>
+        <div id="joinInfo" class="muted"></div>
 
-    <div class="panel" id="studentPanel">
-      <h3>Student — Join class</h3>
-      <label>Class ID
-        <input id="joinClassId" placeholder="paste class id" />
-      </label>
-      <label>Your name
-        <input id="studentName" placeholder="Your name" />
-      </label>
-      <div class="row">
-        <button id="joinBtn">Join</button>
+        <hr/>
+        <div class="row">
+          <label>Color: <input id="colorPicker" type="color" value="#ff0000" /></label>
+          <label>Width: <input id="widthPicker" type="range" min="1" max="12" value="3" /></label>
+        </div>
+        <div class="row" style="margin-top:8px;gap:8px">
+          <button id="requestAnnotateBtn" disabled>Request to annotate</button>
+          <button id="clearMyBtn">Erase my annotations</button>
+        </div>
+        <div id="annotateStatus" class="muted"></div>
+        <h4>Participants</h4>
+        <ul id="participantsStudent"></ul>
       </div>
-      <div id="joinInfo" class="muted"></div>
-
-      <hr/>
-      <div class="row">
-        <label>Color: <input id="colorPicker" type="color" value="#ff0000" /></label>
-        <label>Width: <input id="widthPicker" type="range" min="1" max="12" value="3" /></label>
-        <button id="requestAnnotateBtn" disabled>Request to annotate</button>
-      </div>
-      <div id="annotateStatus" class="muted"></div>
-      <h4>Participants</h4>
-      <ul id="participantsStudent"></ul>
     </div>
   </div>
 

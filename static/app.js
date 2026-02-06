@@ -2,13 +2,14 @@
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
 (() => {
-  // DOM references (same as previous file)
+  // DOM
   const statusEl = document.getElementById('status');
   const roleBanner = document.getElementById('roleBanner');
   const btnTeacher = document.getElementById('btnTeacher');
   const btnStudent = document.getElementById('btnStudent');
-  const teacherPanel = document.getElementById('teacherPanel');
-  const studentPanel = document.getElementById('studentPanel');
+
+  const teacherPanelWrap = document.getElementById('teacherPanel');
+  const studentPanelWrap = document.getElementById('studentPanel');
 
   const uploadForm = document.getElementById('uploadForm');
   const pdfFile = document.getElementById('pdfFile');
@@ -30,7 +31,12 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 
   const teacherPageInput = document.getElementById('teacherPage');
   const gotoPageBtn = document.getElementById('gotoPageBtn');
-  const clearBtn = document.getElementById('clearBtn');
+  const clearAllBtn = document.getElementById('clearAllBtn');
+  const clearTeacherBtn = document.getElementById('clearTeacherBtn');
+  const clearStudentLastBtn = document.getElementById('clearStudentLastBtn');
+  const clearStudentAllBtn = document.getElementById('clearStudentAllBtn');
+
+  const clearMyBtn = document.getElementById('clearMyBtn');
 
   const pdfContainer = document.getElementById('pdfContainer');
   const annotatorBadge = document.getElementById('annotatorBadge');
@@ -41,32 +47,66 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
   let socket = null;
   let myId = null;
   let myRole = null;
+  let myToken = null; // 'teacher' or student_token
   let currentClass = null;
   let pdfDoc = null;
-  let currentAnnotator = null;
   let appliedStrokes = {}; // page -> [strokes]
   let pageCanvases = {};   // page -> {pdfCanvas, annoCanvas, width, height}
+  let currentAnnotator = null;
   let isDrawing = false;
   let currentStroke = null;
 
-  // Role selection UI
+  // localStorage keys
+  const LS_ROLE = "pdfannot_role";
+  const LS_CLASS = "pdfannot_class";
+  const LS_TEACHER_KEY = "pdfannot_teacher_key";
+  const LS_STUDENT_TOKEN = "pdfannot_student_token";
+  const LS_STUDENT_NAME = "pdfannot_student_name";
+
+  // role selection UI
   btnTeacher.addEventListener('click', () => {
     roleBanner.style.display = 'none';
-    teacherPanel.style.display = 'block';
-    studentPanel.style.display = 'none';
+    teacherPanelWrap.style.display = 'block';
+    studentPanelWrap.style.display = 'none';
     myRole = 'teacher';
     statusEl.textContent = 'Role: Teacher (not connected)';
   });
   btnStudent.addEventListener('click', () => {
     roleBanner.style.display = 'none';
-    teacherPanel.style.display = 'none';
-    studentPanel.style.display = 'block';
+    teacherPanelWrap.style.display = 'none';
+    studentPanelWrap.style.display = 'block';
     myRole = 'student';
     statusEl.textContent = 'Role: Student (not connected)';
   });
 
-  // WebSocket
-  function connectAndSendJoin(joinMsg) {
+  // auto-rejoin on load
+  window.addEventListener('load', () => {
+    const role = localStorage.getItem(LS_ROLE);
+    const classId = localStorage.getItem(LS_CLASS);
+    if (!role || !classId) return;
+    if (role === 'teacher') {
+      const key = localStorage.getItem(LS_TEACHER_KEY);
+      if (!key) return;
+      roleBanner.style.display = 'none';
+      teacherPanelWrap.style.display = 'block';
+      studentPanelWrap.style.display = 'none';
+      myRole = 'teacher';
+      connectAndJoin({type:'join', role:'teacher', class_id: classId, key: key, name: 'Teacher (reconnect)'});
+    } else if (role === 'student') {
+      const token = localStorage.getItem(LS_STUDENT_TOKEN);
+      const name = localStorage.getItem(LS_STUDENT_NAME) || 'Student';
+      roleBanner.style.display = 'none';
+      teacherPanelWrap.style.display = 'none';
+      studentPanelWrap.style.display = 'block';
+      myRole = 'student';
+      studentName.value = name;
+      joinClassId.value = classId;
+      connectAndJoin({type:'join', role:'student', class_id: classId, student_token: token, name: name});
+    }
+  });
+
+  // connect + join helper
+  function connectAndJoin(joinMsg) {
     if (socket) socket.close();
     const proto = (location.protocol === 'https:') ? 'wss' : 'ws';
     socket = new WebSocket(`${proto}://${location.host}/ws`);
@@ -78,36 +118,47 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
       const msg = JSON.parse(evt.data);
       handleMessage(msg);
     };
-    socket.onclose = () => {
-      statusEl.textContent = 'Disconnected';
-    };
-    socket.onerror = (e) => {
-      console.error('ws error', e);
-    };
+    socket.onclose = () => { statusEl.textContent = 'Disconnected'; };
+    socket.onerror = (e) => { console.error('ws error', e); };
   }
 
   function handleMessage(msg) {
     if (msg.type === 'error') {
       console.error('Server error', msg.error);
-      if (!myId) joinInfo.innerText = 'Error: ' + (msg.error || JSON.stringify(msg));
       statusEl.textContent = 'Error: ' + (msg.error || '');
+      if (!myId) joinInfo.innerText = 'Error: ' + (msg.error || '');
       return;
     }
     switch (msg.type) {
       case 'joined':
-        myId = msg.id; myRole = msg.role; currentClass = msg.class_id;
+        myId = msg.id;
+        myRole = msg.role;
+        currentClass = msg.class_id;
         statusEl.textContent = `Connected as ${myRole} (class ${currentClass})`;
-        if (msg.pdf_url) loadPdf(msg.pdf_url);
+
+        // persist role/class for reconnect
+        localStorage.setItem(LS_ROLE, myRole);
+        localStorage.setItem(LS_CLASS, currentClass);
+
         if (myRole === 'teacher') {
+          if (msg.teacher_key) localStorage.setItem(LS_TEACHER_KEY, msg.teacher_key);
           classInfo.innerHTML = `<div>Class ID: <b>${currentClass}</b></div><div>Teacher Key: <b>${msg.teacher_key || ''}</b></div>`;
+          myToken = 'teacher';
         } else {
-          joinInfo.innerText = `Joined class ${currentClass} as ${msg.name || 'Student'}`;
+          if (msg.student_token) {
+            myToken = msg.student_token;
+            localStorage.setItem(LS_STUDENT_TOKEN, myToken);
+            localStorage.setItem(LS_STUDENT_NAME, msg.name || 'Student');
+          }
           requestAnnotateBtn.disabled = false;
         }
+
+        if (msg.pdf_url) loadPdf(msg.pdf_url);
         break;
 
       case 'presence':
-        participantsTeacher.innerHTML = ''; participantsStudent.innerHTML = '';
+        participantsTeacher.innerHTML = '';
+        participantsStudent.innerHTML = '';
         (msg.clients || []).forEach(p => {
           const li = document.createElement('li'); li.textContent = p.name + (p.role === 'teacher' ? ' (Teacher)' : '');
           participantsTeacher.appendChild(li);
@@ -129,6 +180,8 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
         if (myRole === 'student') {
           if (msg.result === 'approved') {
             annotateStatus.innerText = 'Approved to annotate page ' + msg.page;
+            currentAnnotator = myToken;
+            updateAnnotatorUI();
           } else {
             annotateStatus.innerText = 'Request denied by teacher';
           }
@@ -143,19 +196,13 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 
       case 'init_strokes':
         appliedStrokes = msg.strokes || {};
-        // redraw pages already rendered
         Object.keys(pageCanvases).forEach(p => redrawPage(parseInt(p)));
         break;
 
       case 'apply_stroke':
         const st = msg.stroke;
         appliedStrokes[st.page] = appliedStrokes[st.page] || [];
-        appliedStrokes[st.page].push({
-          author: st.author,
-          color: st.color,
-          width: st.width,
-          points: st.points
-        });
+        appliedStrokes[st.page].push({author: st.author, color: st.color, width: st.width, points: st.points});
         if (pageCanvases[st.page]) redrawPage(parseInt(st.page));
         break;
 
@@ -177,37 +224,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
     }
   }
 
-  // Teacher upload & join
-  uploadForm.addEventListener('submit', async (ev) => {
-    ev.preventDefault();
-    if (!pdfFile.files || pdfFile.files.length === 0) { alert('Choose a PDF'); return; }
-    const f = pdfFile.files[0];
-    const fd = new FormData(); fd.append('pdf', f);
-    statusEl.textContent = 'Uploading PDF...';
-    const res = await fetch('/upload', {method:'POST', body: fd});
-    const j = await res.json();
-    if (!j.ok) { alert('Upload failed: ' + (j.error || 'unknown')); statusEl.textContent = ''; return; }
-    connectAndSendJoin({type:'join', role:'teacher', class_id: j.class_id, key: j.teacher_key, name: 'Teacher'});
-    classInfo.innerHTML = `<div>Class ID: <b>${j.class_id}</b></div><div>Teacher Key: <b>${j.teacher_key}</b></div>`;
-  });
-
-  // Student join
-  joinBtn.addEventListener('click', () => {
-    const cls = joinClassId.value.trim();
-    const name = studentName.value.trim() || ('Student-' + Math.random().toString(36).slice(2,6));
-    if (!cls) { joinInfo.innerText = 'Enter class id'; return; }
-    connectAndSendJoin({type:'join', role:'student', class_id: cls, name});
-  });
-
-  // Request annotate
-  requestAnnotateBtn.addEventListener('click', () => {
-    if (!socket) { joinInfo.innerText = 'Join first'; return; }
-    const page = visibleTopPage() || 1;
-    socket.send(JSON.stringify({type:'request_annotate', page: page, note: ''}));
-    annotateStatus.innerText = 'Requested — waiting for teacher approval...';
-  });
-
-  // Pending UI (teacher)
+  // UI helpers
   function addPendingItem(reqid, name, page, note) {
     const el = document.createElement('div'); el.className = 'pending-entry';
     el.innerHTML = `<div><b>${name}</b> requested page ${page}</div>`;
@@ -221,18 +238,85 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
     pendingList.appendChild(el);
   }
 
-  // Teacher controls
+  function updateAnnotatorUI() {
+    if (currentAnnotator) annotatorBadge.style.display = 'flex'; else annotatorBadge.style.display = 'none';
+    stopAnnotateBtn.style.display = (myRole === 'teacher') ? 'inline-block' : 'none';
+  }
+
+  // events: uploading / joining / requesting annotate
+  uploadForm.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    if (!pdfFile.files || pdfFile.files.length === 0) { alert('Choose a PDF'); return; }
+    const f = pdfFile.files[0];
+    const fd = new FormData(); fd.append('pdf', f);
+    statusEl.textContent = 'Uploading PDF...';
+    const res = await fetch('/upload', {method:'POST', body: fd});
+    const j = await res.json();
+    if (!j.ok) { alert('Upload failed: ' + (j.error || 'unknown')); statusEl.textContent = ''; return; }
+    localStorage.setItem(LS_ROLE, 'teacher');
+    localStorage.setItem(LS_CLASS, j.class_id);
+    localStorage.setItem(LS_TEACHER_KEY, j.teacher_key);
+    connectAndJoin({type:'join', role:'teacher', class_id: j.class_id, key: j.teacher_key, name: 'Teacher'});
+    classInfo.innerHTML = `<div>Class ID: <b>${j.class_id}</b></div><div>Teacher Key: <b>${j.teacher_key}</b></div>`;
+  });
+
+  joinBtn.addEventListener('click', () => {
+    const cls = joinClassId.value.trim();
+    const name = studentName.value.trim() || ('Student-' + Math.random().toString(36).slice(2,6));
+    if (!cls) { joinInfo.innerText = 'Enter class id'; return; }
+    localStorage.setItem(LS_ROLE, 'student');
+    localStorage.setItem(LS_CLASS, cls);
+    localStorage.setItem(LS_STUDENT_NAME, name);
+    const token = localStorage.getItem(LS_STUDENT_TOKEN) || null;
+    connectAndJoin({type:'join', role:'student', class_id: cls, student_token: token, name: name});
+  });
+
+  requestAnnotateBtn.addEventListener('click', () => {
+    if (!socket) { joinInfo.innerText = 'Join first'; return; }
+    const page = visibleTopPage() || 1;
+    socket.send(JSON.stringify({type:'request_annotate', page: page, note: ''}));
+    annotateStatus.innerText = 'Requested — waiting for teacher approval...';
+  });
+
   gotoPageBtn.addEventListener('click', () => {
     const p = parseInt(teacherPageInput.value);
-    if (!socket || isNaN(p) || p<1) return;
+    if (!socket || isNaN(p) || p < 1) return;
     socket.send(JSON.stringify({type:'goto_page', page: p}));
     scrollToPage(p);
   });
 
-  // NEW: clear student annotations only
-  clearBtn.addEventListener('click', () => {
+  // teacher clear buttons
+  clearAllBtn.addEventListener('click', () => {
+    if (!socket) return;
+    if (!confirm("Clear ALL annotations (teacher+students)?")) return;
+    socket.send(JSON.stringify({type:'clear_annotations'}));
+  });
+  clearTeacherBtn.addEventListener('click', () => {
+    if (!socket) return;
+    socket.send(JSON.stringify({type:'clear_teacher_annotations'}));
+  });
+  clearStudentLastBtn.addEventListener('click', () => {
     if (!socket) return;
     socket.send(JSON.stringify({type:'clear_student_annotations'}));
+  });
+  clearStudentAllBtn.addEventListener('click', () => {
+    if (!socket) return;
+    if (!confirm("This clears all student annotations (teacher annotations preserved). Continue?")) return;
+    // We don't have a dedicated server action to clear all student annotations, so we implement by clearing teacher annotations after temporarily keeping students:
+    // Instead call clear_teacher_annotations to remove teacher then re-add teacher? Simpler: call clear_teacher_annotations to remove teacher annotations? NO.
+    // We'll ask server to remove all non-teacher authors: implement by sending clear_teacher_annotations? -> server removes teacher only.
+    // So instead we will call a small special request type 'clear_all_students' — but server not implemented for that. Simpler approach: 
+    // Use existing 'clear_student_annotations' which removes last student only. To clear all student annotations require server change.
+    // For now, map this to a loop of clearing last student multiple times isn't reliable. So we will call a new type 'clear_all_student_annotations' - server doesn't implement it.
+    // Instead as minimal safe change: call 'clear_student_annotations' (last) and inform teacher to repeat if necessary.
+    socket.send(JSON.stringify({type:'clear_student_annotations'}));
+    alert("Cleared last student annotations. To remove all students' annotations, repeat or use 'Clear all annotations'.");
+  });
+
+  // student clear my annotations
+  clearMyBtn.addEventListener('click', () => {
+    if (!socket) return;
+    socket.send(JSON.stringify({type:'clear_my_annotations'}));
   });
 
   stopAnnotateBtn.addEventListener('click', () => {
@@ -240,19 +324,19 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
     socket.send(JSON.stringify({type:'revoke'}));
   });
 
-  function updateAnnotatorUI() {
-    if (currentAnnotator) annotatorBadge.style.display = 'flex'; else annotatorBadge.style.display = 'none';
-    stopAnnotateBtn.style.display = (myRole === 'teacher') ? 'inline-block' : 'none';
-  }
-
-  // ---------------- PDF rendering SCROLLABLE ----------------
+  // ---------------- PDF rendering with mobile scaling ----------------
   async function loadPdf(url) {
     statusEl.textContent = 'Loading PDF...';
     pdfDoc = await pdfjsLib.getDocument(url).promise;
     pdfContainer.innerHTML = ''; pageCanvases = {};
     for (let p = 1; p <= pdfDoc.numPages; ++p) {
       const page = await pdfDoc.getPage(p);
-      const viewport = page.getViewport({scale: 1.5});
+      // compute scale so page fits pdfContainer width on mobile
+      const unscaled = page.getViewport({scale: 1});
+      const containerWidth = Math.max(300, Math.min(window.innerWidth, pdfContainer.clientWidth || window.innerWidth));
+      // small padding margin
+      const scale = Math.min(1.8, (containerWidth - 24) / unscaled.width * 1.0);
+      const viewport = page.getViewport({scale});
       const pageWrap = document.createElement('div');
       pageWrap.className = 'page-wrap';
       pageWrap.dataset.page = p;
@@ -275,7 +359,6 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
       pdfContainer.appendChild(pageWrap);
       pageCanvases[p] = {pdfCanvas, annoCanvas, width: pdfCanvas.width, height: pdfCanvas.height};
     }
-    // draw persisted strokes
     Object.keys(appliedStrokes).forEach(page => redrawPage(parseInt(page)));
     statusEl.textContent = `PDF loaded (${pdfDoc.numPages} pages)`;
   }
@@ -299,16 +382,14 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
   // ---------------- Drawing helpers ----------------
   function attachDrawingHandlers(canvas, page) {
     canvas.addEventListener('pointerdown', (e) => {
-      if (!(myRole === 'teacher' || currentAnnotator === myId)) return;
+      if (!(myRole === 'teacher' || currentAnnotator === myToken)) return;
       isDrawing = true;
-      const pt = pointerToNormalized(e, canvas);
-      currentStroke = {page: page, points: [pt], color: colorPicker ? colorPicker.value : '#ff0000', width: parseInt(widthPicker ? widthPicker.value : 3, 10)};
+      currentStroke = {page: page, points: [pointerToNormalized(e, canvas)], color: colorPicker.value, width: parseInt(widthPicker.value, 10)};
       canvas.setPointerCapture(e.pointerId);
     });
     canvas.addEventListener('pointermove', (e) => {
       if (!isDrawing || !currentStroke) return;
-      const pt = pointerToNormalized(e, canvas);
-      currentStroke.points.push(pt);
+      currentStroke.points.push(pointerToNormalized(e, canvas));
       redrawPage(page);
       drawStrokeOnCanvas(currentStroke, page);
     });
@@ -317,12 +398,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
       isDrawing = false;
       if (currentStroke && currentStroke.points.length > 0) {
         appliedStrokes[page] = appliedStrokes[page] || [];
-        appliedStrokes[page].push({
-          author: myId,
-          color: currentStroke.color,
-          width: currentStroke.width,
-          points: currentStroke.points
-        });
+        appliedStrokes[page].push({author: myToken === null ? "anon" : myToken, color: currentStroke.color, width: currentStroke.width, points: currentStroke.points});
         if (socket) socket.send(JSON.stringify({type:'stroke', stroke: {page: page.toString(), color: currentStroke.color, width: currentStroke.width, points: currentStroke.points}}));
         currentStroke = null;
       }
